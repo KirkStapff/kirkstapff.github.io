@@ -11,7 +11,7 @@
 <meta property="og:title" content="Recurrent Depth in Z1T: A Quality–Storage Trade-off">
 <meta property="og:description" content="Reusing sparse language-model weights: 49.8% fewer unique body parameters than twelve untied blocks, at a 0.81% perplexity cost.">
 <meta property="og:url" content="https://kirkstapff.github.io/notes/recurrent-depth-z1t.html">
-<meta property="og:image" content="https://kirkstapff.github.io/assets/rz1t/fig2-main-result.png">
+<meta property="og:image" content="https://kirkstapff.github.io/assets/rz1t/fig5-holdout-curves.png">
 <meta property="og:image:alt" content="Z1T confirmation loss versus unique body parameters and paired loss differences.">
 <meta name="twitter:card" content="summary_large_image">
 <style>
@@ -23,42 +23,63 @@
 <body>
 <a class="skip" href="#article">Skip to article</a>
 <div class="shell">
-<header class="site-header"><a class="brand" href="../index.html">Kirk Stapff</a><nav aria-label="Main navigation"><a href="../index.html#work">Work</a><a href="../index.html#notes">Notes</a><a href="../index.html#about">About</a></nav></header>
+<header class="site-header"><a class="brand" href="../index.html">Kirk Stapff</a><nav aria-label="Main navigation"><a href="../index.html#work">Work</a><a href="../index.html#notes">Notes</a></nav></header>
 <main id="article">
 <article aria-labelledby="post-title">
 <div class="article-head">
 <a class="back" href="../index.html#notes">← Back to the notebook</a>
 <p class="eyebrow">Research note / Machine learning</p>
 <h1 id="post-title">Recurrent depth in Z1T:<br><em>a quality–storage trade-off.</em></h1>
-<p class="dek">Can a sparse language model reuse depth instead of storing more weights? My first technical report tests a simple idea: apply the same six-block stack twice.</p>
-<p class="byline">Kirk Stapff · September 2026 · Independent research</p>
+<p class="dek">Investigating enhancements for sparse energy-based language models.</p>
+<p class="byline">Kirk Stapff · 10th September 2026 · Independent research</p>
 <div class="resource-links"><a href="https://github.com/KirkStapff/rz1t">Code &amp; results ↗</a><a href="https://github.com/KirkStapff/rz1t/blob/main/paper/main.tex">Technical report (LaTeX) ↗</a></div>
 </div>
 <div class="prose">
-<div class="takeaway"><p><strong>The short version:</strong> repeating six blocks lowered perplexity by <strong>2.35%</strong> versus applying them once. Compared with twelve unique blocks, it used <strong>49.8% fewer unique body parameters</strong> with <strong>0.81% higher perplexity</strong>.</p><p class="small">A software quality–storage result—not a measured energy saving, and not a halving of the whole model.</p></div>
-<h2>A quick primer: Z1T, energy-based models, and TSUs</h2>
-<p><strong>Z1T is the language-model architecture, not the chip.</strong> It is <a href="https://extropic.ai/writing/z1t/">Extropic’s family of sparse, transformer-like models</a>, designed with its Z1 probabilistic hardware in mind. Like other language models, it predicts the next token from preceding text. Unlike a conventional dense transformer, its sparse layers give each output only a small number of input connections. Its gated convolutional attention combines information across the sequence. Extropic describes splitting decoding work between Z1 and an FPGA—a programmable digital chip—rather than running the entire model on Z1 alone.</p>
-<p><strong>An energy-based model (EBM) assigns a score called “energy” to each possible configuration.</strong> Lower-energy configurations are more probable: in a common formulation, <code>p(x) ∝ exp(−E(x))</code>. Think of a landscape with valleys: learning shapes the landscape, and sampling explores it, visiting lower-energy regions more often without always choosing the deepest valley. This energy is a mathematical score, not the electricity consumed to generate an answer.</p>
-<p><strong>A TSU is a thermodynamic sampling unit:</strong> hardware built to draw samples from programmable probability distributions. Extropic’s <a href="https://extropic.ai/writing/thermodynamic-computing-from-zero-to-one">probabilistic circuits</a> use physical fluctuations as a computational resource. Coupled probabilistic bits, or <em>pbits</em>, fluctuate between binary states; their programmed interactions shape which joint states occur more often. That makes sampling from energy-based distributions a natural workload. Useful outputs can come from statistics collected over those samples—not just one exact digital arithmetic result.</p>
-<p>The connection is a hardware–software one: <strong>EBMs describe probability landscapes; TSUs sample them; Z1T adapts language-model operations to sparse probabilistic hardware.</strong> Z1T is not simply an EBM over complete sentences, and this study does not train one. I test its recurrent architecture in software, then ask what the storage trade-off might mean for a future hardware mapping.</p>
-<h2>Separate what you store from what you execute</h2>
-<p>In a conventional depth comparison, a deeper model usually both stores more weights and performs more computation. Weight sharing lets us separate those choices: a small stored core can be applied repeatedly.</p>
-<p>That distinction is interesting for accelerators that keep sparse programs resident on-chip. Extra unique weights may require more capacity or more program loading. Reusing a resident core could change that trade-off—but first, does the shared model retain useful language-model quality?</p>
-<p>I built on <a href="https://github.com/extropic-ai/sparse-transformers">Extropic’s Z1T software recipe</a> and compared three architectures. Recurrence here means repeating a stack of residual blocks within the model, not carrying a persistent hidden state across tokens.</p>
+<h2>TSUs, energy-based models, and Z1T</h2>
+<p><strong>A TSU or thermodynamic sampling unit</strong> is 
+    hardware built to draw samples from programmable probability distributions. 
+    Extropic’s <a href="https://extropic.ai/writing/thermodynamic-computing-from-zero-to-one">
+    probabilistic circuits</a> use physical fluctuations as a computational resource. 
+    Coupled probabilistic bits, or <em>pbits</em>, fluctuate between binary states; 
+    their programmed interactions shape which joint states occur more often. 
+    Their outputs are determined by allowing physics 
+    to settle the chip into a stable configuration over multiple samples.</p>
+<p><strong>An energy-based model (EBM) assigns an energy score to each possible 
+    configuration.</strong> Lower-energy configurations are more probable: 
+    <code>p(x) ∝ exp(−E(x))</code>. Think of a landscape with 
+    valleys: learning shapes the landscape, and sampling explores it. If the model 
+    is trained effectively, finding the lowest-energy regions is equivalent to 
+    generating a useful output. Compared to regular computers, TSUs can cost 
+    much less input energy to arrive at an answer, but it can only run energy-based models 
+    which are currently incompatible with traditional LLMs.</p>
+<p><strong>Z1T is a sparse language-model architecture.</strong> 
+    It is <a href="https://extropic.ai/writing/z1t/">Extropic’s family of 
+    transformer-like models</a>, designed with its Z1 probabilistic hardware 
+    in mind. It is similar to a traditional transformer but uses sparse layers that 
+    give each output only a small number of input connections, which allow it to 
+    run on a TSU. Its gated convolutional attention combines information across the sequence.</p>
+<h2>Recurrence and looping</h2>
+<p>In a conventional non-looping model, a deeper model usually both stores more weights 
+    and performs more computation. Weight sharing lets us separate those choices: a 
+    small stored core can be applied repeatedly.</p>
+<p>That distinction is interesting for accelerators that keep sparse programs resident 
+    on-chip. Extra unique weights may require more capacity or more program loading. 
+    Reusing a resident core could change that trade-off, but does a shared 
+    model retain useful language-model quality?</p>
+<p>I built on <a href="https://github.com/extropic-ai/sparse-transformers">Extropic’s 
+    Z1T software recipe</a> and compared three architectures. Recurrence here means 
+    repeating a stack of residual blocks within the model, not carrying a persistent 
+    hidden state across tokens.</p>
 <div class="table-wrap" role="region" aria-label="Architecture comparison" tabindex="0"><table><caption>Same width, sparsity, tokenizer, and training-token budget</caption><thead><tr><th scope="col">Model</th><th scope="col">Unique blocks</th><th scope="col">Applied depth</th><th scope="col">Body params</th></tr></thead><tbody><tr><th scope="row">U6</th><td>6</td><td>6</td><td>102,589</td></tr><tr class="highlight"><th scope="row">R6×2</th><td>6</td><td>12</td><td>102,589</td></tr><tr><th scope="row">U12</th><td>12</td><td>12</td><td>204,409</td></tr></tbody></table></div>
 <p>U6 versus R6×2 isolates the benefit of extra computation at fixed unique body capacity. R6×2 versus U12 measures the cost of sharing at fixed applied depth. Each architecture was trained separately at its evaluation recurrence count; this is not a test of adding loops to an already-trained model.</p>
-<h2>What the experiment found</h2>
+<h2>Experiment results</h2>
 <p>I ran six training seeds per architecture—18 confirmation runs—on an archived 40,000-document OpenWebText subset. Each run received 254,164,992 target-token presentations, including repeated exposures. Width was 384, context length 256, and sparse body fan-in <code>c = 4</code>. The runs were matched on token presentations, not audited FLOPs.</p>
 </div>
-<figure><a href="../assets/rz1t/fig2-main-result.png" aria-label="Open the full-size quality–storage result figure"><img src="../assets/rz1t/fig2-main-result.png" alt="Confirmation NLL: U6 5.8838 and R6×2 5.8600 at 102,589 body parameters; U12 5.8519 at 204,409. R6×2 improves on U6 but has slightly higher loss than U12." width="2846" height="1346" loading="lazy" decoding="async"></a><figcaption>Final confirmation loss versus unique body parameters, and paired loss differences across six training seeds. Lower NLL is better. Intervals are 97.5% paired Student-t intervals, adjusted over two contrasts. Figure 2 from the technical report; select to enlarge.</figcaption></figure>
+<figure><a href="../assets/rz1t/fig5-holdout-curves.png" aria-label="Open the full-size quality–storage result figure"><img src="../assets/rz1t/fig5-holdout-curves.png" alt="Confirmation NLL: U6 5.8838 and R6×2 5.8600 at 102,589 body parameters; U12 5.8519 at 204,409. R6×2 improves on U6 but has slightly higher loss than U12." width="2846" height="1346" loading="lazy" decoding="async"></a><figcaption>Final confirmation loss versus unique body parameters, and paired loss differences across six training seeds. Lower NLL is better. Intervals are 97.5% paired Student-t intervals, adjusted over two contrasts. Figure 2 from the technical report; select to enlarge.</figcaption></figure>
 <div class="prose">
 <p>At the same unique body capacity, R6×2 improved over U6 by <strong>2.35% perplexity</strong>. The mean negative log-likelihood (NLL) difference was −0.0237 nats/token, with a 97.5% paired interval of [−0.0273, −0.0202]. Reusing the weights for a second pass helped.</p>
 <p>At the same applied depth, R6×2 had <strong>0.81% higher perplexity</strong> than U12. The mean NLL difference was +0.0081 nats/token, with a 97.5% paired interval of [+0.0023, +0.0139]. The deeper untied model was better, but required nearly twice the unique body parameters.</p>
 <p>So this is a trade-off, not lossless compression or a claim of equivalent quality. The intervals describe training-seed variability on a fixed holdout, not uncertainty across datasets.</p>
-<h2>What “half the storage” does—and doesn’t—mean</h2>
-<p>The 49.8% reduction excludes the token embedding and dense vocabulary classifier. Including those, total trainable parameters are about 38.75 million for R6×2 and 38.85 million for U12. The result concerns the sparse <em>body</em>, not a 50% reduction in total model memory.</p>
-<p>Likewise, another application of a neural block is not simply another cheap Gibbs update. Whether recurrence saves deployment energy depends on what stays resident, what gets reloaded, and the cost of execution and readout. The report explores a conditional six-block-residency schedule; it does not establish a measured hardware win.</p>
-<p><strong>An energy-cost model is different from an energy-based model.</strong> Here it means an accounting estimate in joules per token: add the costs of loading weights, executing operations or drawing samples, reading results, moving state, and running the surrounding digital hardware, including static power over elapsed time; then divide by tokens delivered. Reusing weights could avoid some loading costs, but does not make the second pass free. Without a validated mapping and measured costs, fewer stored parameters alone cannot establish lower electricity use.</p>
 <ul>
 <li><strong>Software, not silicon:</strong> these runs used H100 GPUs and float32 model arrays. Fan-in four is sparsity, not 4-bit precision. No TSU energy, latency, or silicon area was measured.</li>
 <li><strong>A limited regime:</strong> one model width, one context length, and an OpenWebText subset—not a full-corpus benchmark or a scaling law.</li>
@@ -74,7 +95,7 @@ JAX_PLATFORMS=cpu uv run python scripts/make_paper_figures.py</code></pre>
 </div>
 </article>
 </main>
-<footer class="site-footer"><span>KIRK STAPFF / SYSTEMS NOTEBOOK</span><span>Build. Observe. Revise.</span></footer>
+<footer class="site-footer"><span>KIRK STAPFF / SYSTEMS NOTEBOOK</span><span>Build.</span></footer>
 </div>
 </body>
 </html>

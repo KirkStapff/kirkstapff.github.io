@@ -14,5 +14,6 @@ GitHub Pages should be configured under **Settings → Pages → Deploy from a b
 
 The homepage links to the recurrent-depth Z1T research post at
 `notes/recurrent-depth-z1t.html`. Other notebook entries remain labeled as ideas.
-The post's main figure is copied from the accompanying `KirkStapff/rz1t`
-research repository; update it there first if the results change.
+The post's main figure and PDF are copied from the accompanying
+`KirkStapff/rz1t` research repository; update them there first if the
+results change. The compiled report is served at `assets/rz1t/rz1t.pdf`.

@@ -61,19 +61,24 @@
 <h2>Recurrence and looping</h2>
 <p>In a conventional non-looping model, a deeper model usually both stores more weights 
     and performs more computation. Weight sharing lets us separate those choices: a 
-    small stored core can be applied repeatedly.</p>
-<p>That distinction is interesting for accelerators that keep sparse programs resident 
-    on-chip. Extra unique weights may require more capacity or more program loading. 
-    Reusing a resident core could change that trade-off, but does a shared 
-    model retain useful language-model quality?</p>
+    small stored core can be applied repeatedly. Recurrence here means repeating a 
+    stack of residual blocks within the model, not carrying a persistent hidden 
+    state across tokens.</p>
+<h2>Why flashing still matters</h2>
+<p>A TSU’s advantage is in drawing samples, not in loading a program. Sampling 
+    can cost much less energy than the same inference on a GPU. Flashing the 
+    weights onto the chip—setting the couplings that define the 
+    distribution is still a conventional write. That step looks more like a 
+    GPU memory transfer than a thermodynamic computation in terms of energy cost.</p>
+<p>If the model is too large to fit on the chip, it must be flashed in sections for each output.
+    Recurrence is one way to get more applied depth from a smaller stored core, 
+    which is why the quality cost of sharing those weights is worth measuring.</p>
 <p>I built on <a href="https://github.com/extropic-ai/sparse-transformers">Extropic’s 
-    Z1T software recipe</a> and compared three architectures. Recurrence here means 
-    repeating a stack of residual blocks within the model, not carrying a persistent 
-    hidden state across tokens.</p>
+    Z1T software recipe</a> and compared three architectures.</p>
 <div class="table-wrap" role="region" aria-label="Architecture comparison" tabindex="0"><table><caption>Same width, sparsity, tokenizer, and training-token budget</caption><thead><tr><th scope="col">Model</th><th scope="col">Unique blocks</th><th scope="col">Applied depth</th><th scope="col">Body params</th></tr></thead><tbody><tr><th scope="row">U6</th><td>6</td><td>6</td><td>102,589</td></tr><tr class="highlight"><th scope="row">R6×2</th><td>6</td><td>12</td><td>102,589</td></tr><tr><th scope="row">U12</th><td>12</td><td>12</td><td>204,409</td></tr></tbody></table></div>
 <p>U6 versus R6×2 isolates the benefit of extra computation at fixed unique body capacity. R6×2 versus U12 measures the cost of sharing at fixed applied depth. Each architecture was trained separately at its evaluation recurrence count; this is not a test of adding loops to an already-trained model.</p>
 <h2>Experiment results</h2>
-<p>I ran six training seeds per architecture—18 confirmation runs—on an archived 40,000-document OpenWebText subset. Each run received 254,164,992 target-token presentations, including repeated exposures. Width was 384, context length 256, and sparse body fan-in <code>c = 4</code>. The runs were matched on token presentations, not audited FLOPs.</p>
+<p>I ran six training seeds per architecture—18 confirmation runs—on an archived 40,000-document OpenWebText subset. Each run received 254,164,992 target-token presentations, including repeated exposures. Width was 384, context length 256, and sparse body fan-in <code>c = 4</code>.</p>
 </div>
 <figure><a href="../assets/rz1t/fig5-holdout-curves.png" aria-label="Open the full-size quality–storage result figure"><img src="../assets/rz1t/fig5-holdout-curves.png" alt="Confirmation NLL: U6 5.8838 and R6×2 5.8600 at 102,589 body parameters; U12 5.8519 at 204,409. R6×2 improves on U6 but has slightly higher loss than U12." width="2846" height="1346" loading="lazy" decoding="async"></a><figcaption>Final confirmation loss versus unique body parameters, and paired loss differences across six training seeds. Lower NLL is better. Intervals are 97.5% paired Student-t intervals, adjusted over two contrasts. Figure 2 from the technical report; select to enlarge.</figcaption></figure>
 <div class="prose">
